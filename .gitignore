@@ -69,3 +69,6 @@ Thumbs.db
 !/mod/src/main/java/com/friendswine/
 /mod/src/main/java/com/friendswine/*
 !/mod/src/main/java/com/friendswine/JellyAnimation.java
+
+# 资源工具也会在此生成解包后的 CE 配置，不仅是 ZIP。
+/ports/folia-26.3/content/
