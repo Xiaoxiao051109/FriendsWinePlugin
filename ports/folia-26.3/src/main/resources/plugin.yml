@@ -1,0 +1,21 @@
+name: FriendsWinePlugin
+version: '${version}'
+main: com.friendswine.tongtou.FriendsWinePlugin
+api-version: '1.21'
+folia-supported: true
+depend: [BetterModel, CraftEngine]
+commands:
+  tongtou:
+    description: 通透模式物品及状态管理
+    usage: /tongtou <give|status|reload|stop|resources>
+    permission: tongtou.admin
+permissions:
+  tongtou.use:
+    description: 潜行右击播放通透动画
+    default: true
+  tongtou.party.use:
+    description: 放置、开停玩偶与使用遥控器
+    default: true
+  tongtou.admin:
+    description: 管理通透模式
+    default: op

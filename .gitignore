@@ -1,0 +1,71 @@
+# 六个工程的构建缓存与成品由 Gradle 重建，不作为源码提交。
+.gradle/
+build/
+out/
+bin/
+repo/
+**/src/generated/**/.cache/
+
+# 开发游戏目录含存档、运行配置和日志。
+/mod/run*/
+/ports/*/run*/
+logs/
+crash-reports/
+*.log
+/.verification/
+
+# 本地编辑器、系统与 Python 缓存。
+.idea/
+.vscode/
+.settings/
+.classpath
+.project
+*.iml
+*.iws
+*.ipr
+__pycache__/
+*.pyc
+.DS_Store
+Thumbs.db
+
+# 本地认证与环境配置不得进入公开源码。
+.env
+.env.*
+!.env.example
+
+# Wrapper JAR 是独立构建入口的一部分，必须保留。
+*.jar
+!**/gradle/wrapper/gradle-wrapper.jar
+
+# FriendsWinePlugin 仓库仅同步 Folia 源码，不包含资源归档与编译产物。
+*.zip
+*.class
+*.war
+*.exe
+*.dll
+*.so
+*.dylib
+
+# 根目录使用白名单，防止混入其他版本、素材、日志或本地配置。
+/*
+!/.gitignore
+!/.gitattributes
+!/SOURCE.md
+!/ports/
+/ports/*
+!/ports/folia-26.3/
+
+# Folia 构建只引用原模组中的这一份共享动画源码。
+!/mod/
+/mod/*
+!/mod/src/
+/mod/src/*
+!/mod/src/main/
+/mod/src/main/*
+!/mod/src/main/java/
+/mod/src/main/java/*
+!/mod/src/main/java/com/
+/mod/src/main/java/com/*
+!/mod/src/main/java/com/friendswine/
+/mod/src/main/java/com/friendswine/*
+!/mod/src/main/java/com/friendswine/JellyAnimation.java

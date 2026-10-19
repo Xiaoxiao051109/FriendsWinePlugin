@@ -1,0 +1,25 @@
+# 玩家不变形、不被拉动；不生成NPC，不改变真实实体的AI总开关或尺寸。
+item-id: tongtou:mode
+reach: 6.0
+max-concurrent: 128
+cooldown-millis: 250
+cycles: 1
+compression-percent: 50.0
+width-percent: 50.0
+rotation-speed: 1.0
+animate-existing-models: true
+
+party:
+  peace: true
+  max-dolls: 128
+  max-tracked-mobs: 8192
+  max-visual-entities: 256
+  orbit-speed: 1.0
+  music:
+    enabled: true
+    # 每个来源使用独立声音槽，范围20格；最大支持4个同时播放的玩偶。
+    max-sources-per-player: 4
+
+# 使用CE已有工作流合包、托管和下发；不修改其地址或开放新端口。
+resources:
+  ce-workflow: default

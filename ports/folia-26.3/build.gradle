@@ -1,0 +1,189 @@
+import groovy.json.JsonSlurper
+plugins { id 'java' }
+group = 'com.friendswine'
+version = '1.1.0'
+repositories {
+    mavenCentral()
+    maven { url = 'https://repo.purpurmc.org/snapshots/' }
+    maven { url = 'https://repo.papermc.io/repository/maven-public/' }
+    maven { url = 'https://libraries.minecraft.net/' }
+    maven { url = 'https://repo.momirealms.net/releases/' }
+}
+java { toolchain.languageVersion = JavaLanguageVersion.of(25) }
+tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8'; options.release = 21 }
+sourceSets {
+    modelExporter { java.srcDir 'src/modelExporter/java' }
+    bm3 { java.srcDir 'src/bm3/java'; compileClasspath += sourceSets.main.output }
+    bm1 { java.srcDir 'src/bm1/java'; compileClasspath += sourceSets.main.output }
+    legacyTest { java.srcDir 'src/legacyTest/java'; compileClasspath += sourceSets.main.output + sourceSets.bm1.output; runtimeClasspath += sourceSets.main.output + sourceSets.bm1.output }
+}
+configurations {
+    bm3CompileOnly.extendsFrom compileOnly
+    bm1CompileOnly.extendsFrom compileOnly
+}
+def localDownload = { name -> new File(System.getProperty('user.home'), 'Downloads/' + name).path }
+def bmJar = providers.gradleProperty('betterModelJar').orElse(localDownload('bettermodel-3.5.0-paper.jar'))
+def legacyBmJar = providers.gradleProperty('legacyBetterModelJar').orElse(file('.dependencies/bettermodel-1.15.2/BetterModel-1.15.2-paper.jar').absolutePath)
+def ceJar = providers.gradleProperty('craftEngineJar').orElse(localDownload('craft-engine-paper-plugin-26.9.2.jar'))
+def mcRoot = new File(System.getProperty('user.home'), '.gradle/caches/fabric-loom/26.3')
+def mcJar = providers.gradleProperty('minecraftClientJar').orElse(new File(mcRoot, 'minecraft-client.jar').path)
+def mcInfo = providers.gradleProperty('minecraftVersionJson').orElse(new File(mcRoot, 'mojang_minecraft_info.json').path)
+def mcLibraries = providers.gradleProperty('minecraftLibraries')
+dependencies {
+    compileOnly 'io.papermc.paper:paper-api:1.21.1-R0.1-SNAPSHOT'
+    bm3CompileOnly 'io.papermc.paper:paper-api:26.3.build.175-stable'
+    if (file(bmJar.get()).isFile()) bm3CompileOnly files(bmJar.get())
+    else bm3CompileOnly 'io.github.toxicity188:bettermodel-bukkit-api:3.5.0'
+    if (file(legacyBmJar.get()).isFile()) bm1CompileOnly files(legacyBmJar.get())
+    else bm1CompileOnly 'io.github.toxicity188:bettermodel:1.15.2'
+    testImplementation sourceSets.bm3.output
+    legacyTestImplementation platform('org.junit:junit-bom:5.11.4')
+    legacyTestImplementation 'org.junit.jupiter:junit-jupiter'
+    legacyTestRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    legacyTestImplementation 'io.papermc.paper:paper-api:1.21.1-R0.1-SNAPSHOT'
+    legacyTestImplementation 'org.joml:joml:1.10.8'
+    legacyTestImplementation 'com.google.code.gson:gson:2.13.2'
+    if (file(legacyBmJar.get()).isFile()) legacyTestImplementation files(legacyBmJar.get())
+    else legacyTestImplementation 'io.github.toxicity188:bettermodel:1.15.2'
+    if (file(ceJar.get()).isFile()) compileOnly files(ceJar.get())
+    else {
+        compileOnly 'net.momirealms:craft-engine-core:26.9.2'
+        compileOnly 'net.momirealms:craft-engine-bukkit:26.9.2'
+    }
+    compileOnly 'org.joml:joml:1.10.8'
+    testImplementation platform('org.junit:junit-bom:5.11.4')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    testImplementation 'com.google.code.gson:gson:2.13.2'
+    testImplementation 'org.joml:joml:1.10.8'
+    testRuntimeOnly 'org.semver4j:semver4j:6.0.0'
+    testImplementation 'io.github.toxicity188:java-mesh:0.0.1'
+    if (file(bmJar.get()).isFile()) testImplementation files(bmJar.get())
+    else testImplementation 'io.github.toxicity188:bettermodel-bukkit-api:3.5.0'
+    testImplementation 'io.papermc.paper:paper-api:26.3.build.175-stable'
+    modelExporterImplementation 'com.google.code.gson:gson:2.13.2'
+    if (file(mcInfo.get()).isFile()) {
+        new JsonSlurper().parse(file(mcInfo.get())).libraries.each { library ->
+            def osName = System.getProperty('os.name').toLowerCase().contains('win') ? 'windows' :
+                    System.getProperty('os.name').toLowerCase().contains('mac') ? 'osx' : 'linux'
+            boolean allowed = !library.rules
+            library.rules?.each { rule ->
+                if (rule.os?.name == null || rule.os.name == osName) allowed = rule.action == 'allow'
+            }
+            if (allowed && library.downloads?.artifact != null && library.name.split(':').length == 3) {
+                if (mcLibraries.isPresent()) {
+                    def root = file(mcLibraries.get()).toPath().toAbsolutePath().normalize()
+                    def dependency = root.resolve(library.downloads.artifact.path).normalize()
+                    if (!dependency.startsWith(root) || !dependency.toFile().isFile()) {
+                        throw new GradleException('缺失或无效的客户端依赖：' + dependency)
+                    }
+                    modelExporterRuntimeOnly files(dependency)
+                } else modelExporterRuntimeOnly library.name
+            }
+        }
+    }
+}
+compileJava.source file('../../mod/src/main/java/com/friendswine/JellyAnimation.java')
+processResources {
+    dependsOn 'verifyBundledAssets'
+    from(zipTree('content/builtin-1.1.0.zip')) { into 'bundled' }
+    duplicatesStrategy = DuplicatesStrategy.FAIL
+    inputs.property 'version', project.version
+    filesMatching('plugin.yml') { expand(version: project.version) }
+}
+test {
+    useJUnitPlatform()
+    dependsOn jar
+    doFirst { systemProperty 'tongtou.jar', tasks.jar.archiveFile.get().asFile.absolutePath }
+}
+jar { from sourceSets.bm3.output; from sourceSets.bm1.output; archiveFileName = "FriendsWinePlugin-${project.version}-Paper-Folia.jar" }
+tasks.register('exportVanilla', JavaExec) {
+    group = '模型资源'
+    description = '从本地官方26.3客户端导出模型层，不启动图形客户端。'
+    dependsOn modelExporterClasses
+    mainClass = 'com.friendswine.tongtou.export.VanillaModelExporter'
+    classpath = sourceSets.modelExporter.runtimeClasspath + files(mcJar.get())
+    workingDir = layout.buildDirectory.dir('export-work').get().asFile
+    doFirst {
+        if (!file(mcJar.get()).isFile() || !file(mcInfo.get()).isFile()) {
+            throw new GradleException('请用 -PminecraftClientJar 和 -PminecraftVersionJson 指定官方26.3客户端及版本JSON。')
+        }
+        def metadata = new JsonSlurper().parse(file(mcInfo.get()))
+        def expectedHash = metadata.downloads?.client?.sha1
+        if (expectedHash == null) throw new GradleException('版本JSON缺少官方客户端SHA1')
+        def digest = java.security.MessageDigest.getInstance('SHA-1')
+        file(mcJar.get()).withInputStream { input ->
+            byte[] buffer = new byte[65536]
+            for (int count; (count = input.read(buffer)) >= 0;) digest.update(buffer, 0, count)
+        }
+        if (digest.digest().encodeHex().toString() != expectedHash) {
+            throw new GradleException('客户端JAR与版本JSON中的官方校验值不符，拒绝执行')
+        }
+        workingDir.mkdirs()
+    }
+    args file(mcJar.get()).absolutePath, layout.buildDirectory.dir('vanilla-export').get().asFile.absolutePath
+}
+tasks.register('verifyBundledAssets') {
+    inputs.file('content/builtin-1.1.0.zip')
+    doLast {
+        new java.util.zip.ZipFile(file('content/builtin-1.1.0.zip')).withCloseable { archive ->
+            def index = new JsonSlurper().parse(archive.getInputStream(archive.getEntry('index.json')))
+            if (index.schema != 1 || index.minecraft != '26.3' || index.models < 1) throw new GradleException('内置资源清单无效')
+            def paths = [] as Set
+            index.files.each { entry ->
+                if (!(entry.path ==~ '[a-z0-9_./-]+') || entry.path.split('/').any { it == '..' || it == '.' } || entry.path.startsWith('/'))
+                    throw new GradleException('非法内置资源路径：' + entry.path)
+                if (!paths.add(entry.path)) throw new GradleException('重复内置资源：' + entry.path)
+                def zipped = archive.getEntry(entry.path)
+                if (zipped == null) throw new GradleException('缺少内置资源：' + entry.path)
+                def bytes = archive.getInputStream(zipped).withCloseable { it.readAllBytes() }
+                def hash = java.security.MessageDigest.getInstance('SHA-256').digest(bytes).encodeHex().toString()
+                if (bytes.length != entry.size || hash != entry.sha256) throw new GradleException('内置资源校验失败：' + entry.path)
+            }
+            def catalog = new JsonSlurper().parse(archive.getInputStream(archive.getEntry('catalog.json')))
+            def expected = catalog.models.collect { 'models/' + it.model + '.bbmodel' }.toSet()
+            def features = new JsonSlurper().parse(archive.getInputStream(archive.getEntry('feature-models.json')))
+            expected.addAll(features.models.collect { 'models/' + it + '.bbmodel' })
+            def actual = paths.findAll { it.startsWith('models/') }.toSet()
+            if (catalog.models.size() != index.vanilla_models || expected.size() != index.models || expected != actual) throw new GradleException('模型与内置目录不一致')
+        }
+    }
+}
+tasks.register('bundle', Zip) {
+    group = 'distribution'
+    description = '可选备份包；安装只需内置资源的插件JAR。'
+    dependsOn build
+    archiveFileName = "FriendsWinePlugin-${project.version}-Paper-Folia-bundle.zip"
+    destinationDirectory = layout.buildDirectory.dir('distributions')
+    from(tasks.jar) { into 'plugins' }
+    from('README.md')
+}
+
+tasks.register('legacyTest', Test) {
+    useJUnitPlatform()
+    testClassesDirs = sourceSets.legacyTest.output.classesDirs
+    classpath = sourceSets.legacyTest.runtimeClasspath
+    onlyIf { providers.gradleProperty('runLegacyBackendTests').orElse('false').get().toBoolean() }
+}
+check.dependsOn tasks.named('legacyTest')
+
+// 构建JDK25能够读取现代API，输出仍为release21；现代API仅出现在隔离后端和其测试中。
+['bm3CompileClasspath','testCompileClasspath','testRuntimeClasspath'].each { name ->
+    configurations.named(name) { attributes.attribute(org.gradle.api.attributes.java.TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE,25) }
+}
+
+tasks.register('verifyCoreLinkage') {
+    dependsOn compileJava
+    doLast {
+        sourceSets.main.output.classesDirs.each { root ->
+            fileTree(root).matching { include '**/*.class' }.each { file ->
+                byte[] bytes=file.bytes
+                int major=(Byte.toUnsignedInt(bytes[6])<<8)|Byte.toUnsignedInt(bytes[7])
+                if(major>65)throw new GradleException('公共代码不是Java21字节码：'+file)
+                if(new String(bytes,java.nio.charset.StandardCharsets.ISO_8859_1).contains('kr/toxicity/model/'))
+                    throw new GradleException('公共代码泄漏BetterModel代际类型：'+file)
+            }
+        }
+    }
+}
+check.dependsOn tasks.named('verifyCoreLinkage')
